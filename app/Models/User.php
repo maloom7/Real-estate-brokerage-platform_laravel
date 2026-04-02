@@ -2,48 +2,82 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'name', 'email', 'phone', 'password', 'role', 'status',
+        'permissions', 'manager_id', 'profile_photo_path'
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
-        'password',
-        'remember_token',
+        'password', 'remember_token'
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+        'permissions' => 'array'
+    ];
+
+    public function properties()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->hasMany(Property::class, 'agent_id');
+    }
+
+    public function managedUsers()
+    {
+        return $this->hasMany(User::class, 'manager_id');
+    }
+
+    public function manager()
+    {
+        return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    public function deals()
+    {
+        return $this->hasMany(Deal::class, 'agent_id');
+    }
+
+    public function activityLogs()
+    {
+        return $this->hasMany(\Spatie\Activitylog\Models\Activity::class, 'causer_id');
+    }
+
+    public function isAdmin()
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isManager()
+    {
+        return $this->role === 'manager';
+    }
+
+    public function isAgent()
+    {
+        return $this->role === 'agent';
+    }
+
+    public function canAccessProperty(Property $property)
+    {
+        if ($this->isAdmin()) return true;
+        if ($this->id === $property->agent_id) return true;
+        if ($this->isManager() && $this->id === $property->agent->manager_id) return true;
+        return $property->visibility !== 'internal';
+    }
+
+    public function hasPermission(string $permission)
+    {
+        if ($this->isAdmin()) return true;
+        return in_array($permission, $this->permissions ?? []);
     }
 }
