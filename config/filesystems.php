@@ -36,6 +36,8 @@ return [
             'serve' => true,
             'throw' => false,
             'report' => false,
+            'visibility' => 'private', 
+
         ],
 
         'public' => [
